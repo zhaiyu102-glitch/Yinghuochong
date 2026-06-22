@@ -32,9 +32,8 @@ import {
   Camera
 } from "lucide-react";
 
-// Use direct absolute string URLs for the generated assets to avoid TS asset loading errors
-const rainyForestNight = "/src/assets/images/rainy_forest_1782139204033.jpg";
-const deepEnchantedForest = "/src/assets/images/enchanted_forest_1782139215309.jpg";
+import rainyForestNight from "./assets/images/rainy_forest_1782139204033.jpg";
+import deepEnchantedForest from "./assets/images/enchanted_forest_1782139215309.jpg";
 
 // Pre-load background image for high-performance canvas rendering
 const bgImgElement = new Image();
