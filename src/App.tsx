@@ -417,6 +417,10 @@ export default function App() {
     setHandPos({ x: hand.x, y: hand.y });
     setActiveGesture(hand.gesture);
     setTrackingConfidence(hand.confidence);
+
+    if (hand.gesture === HandGesture.OK) {
+      setActiveDiaryPopup(null);
+    }
   };
 
   // Debounce/stabilize rapid gesture toggles to simulate rich physics and trigger sound effects
@@ -434,6 +438,8 @@ export default function App() {
         } else if (activeGesture === HandGesture.OPEN && stabilizedGesture === HandGesture.FIST) {
           playReleaseSound();
           triggerFireflyRelease();
+        } else if (activeGesture === HandGesture.OK) {
+          setActiveDiaryPopup(null);
         }
       }, 150); // 150ms stabilization filter
       return () => clearTimeout(timeout);
@@ -756,6 +762,9 @@ export default function App() {
   const handleVirtualClickStage = (gesture: HandGesture) => {
     startAtmosphereAndAudio();
     setActiveGesture(gesture);
+    if (gesture === HandGesture.OK) {
+      setActiveDiaryPopup(null);
+    }
   };
 
   const handlePointerMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1057,10 +1066,10 @@ export default function App() {
 
               {/* Control helper inside virtual mode */}
               {controlMode === "virtual" && (
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                   <button
                     onClick={() => handleVirtualClickStage(HandGesture.OPEN)}
-                    className={`py-2 px-2.5 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2 px-1 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
                       stabilizedGesture === HandGesture.OPEN
                         ? "bg-lime-400/20 border-lime-400 text-lime-300 shadow-md"
                         : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
@@ -1072,7 +1081,7 @@ export default function App() {
 
                   <button
                     onClick={() => handleVirtualClickStage(HandGesture.FIST)}
-                    className={`py-2 px-2.5 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2 px-1 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
                       stabilizedGesture === HandGesture.FIST
                         ? "bg-sky-400/20 border-sky-400 text-sky-300 shadow-md"
                         : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
@@ -1080,6 +1089,18 @@ export default function App() {
                   >
                     <span className="text-sm">✊</span>
                     <span>握拳 (捕捉)</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleVirtualClickStage(HandGesture.OK)}
+                    className={`py-2 px-1 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
+                      stabilizedGesture === HandGesture.OK
+                        ? "bg-amber-400/20 border-amber-400 text-amber-300 shadow-md"
+                        : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
+                    }`}
+                  >
+                    <span className="text-xs">👌</span>
+                    <span>OK (关闭)</span>
                   </button>
                 </div>
               )}

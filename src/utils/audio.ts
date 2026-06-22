@@ -14,6 +14,11 @@ let windFilter: BiquadFilterNode | null = null;
 let cricketInterval: any = null;
 let forestGain: GainNode | null = null;
 
+let musicGain: GainNode | null = null;
+let natureGain: GainNode | null = null;
+let musicInterval: any = null;
+let natureInterval: any = null;
+
 function getAudioContext(): AudioContext {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -133,6 +138,154 @@ export const startAmbientSynth = () => {
       }
     }, 1200);
   }
+
+  // 4. Start serene forest music
+  startForestMusic(ctx, ctx.destination);
+
+  // 5. Start nature sounds
+  startNatureSounds(ctx, ctx.destination);
+};
+
+const startForestMusic = (ctx: AudioContext, destination: AudioNode) => {
+  if (musicInterval) return;
+
+  musicGain = ctx.createGain();
+  musicGain.gain.setValueAtTime(0, ctx.currentTime);
+  musicGain.connect(destination);
+
+  // Serene G/C pentatonic and major 9th progression
+  const chordBook = [
+    [130.81, 164.81, 196.00, 246.94, 293.66], // Cmaj9 (C3, E3, G3, B3, D4)
+    [110.00, 130.81, 164.81, 196.00, 220.00], // Am9 (A2, C3, E3, G3, A3)
+    [174.61, 220.00, 261.63, 329.63, 392.00], // Fmaj9 (F3, A3, C4, E4, G4)
+    [146.83, 196.00, 246.94, 293.66, 370.01], // G9/D (D3, G3, B3, D4, F#4)
+  ];
+
+  let currentChordIndex = 0;
+
+  const playNextChord = () => {
+    if (!musicGain || musicGain.gain.value < 0.001) return;
+
+    const chord = chordBook[currentChordIndex];
+    currentChordIndex = (currentChordIndex + 1) % chordBook.length;
+
+    const now = ctx.currentTime;
+    const chordDuration = 9; // Sustained pads
+    const fadeTime = 3.5;
+
+    chord.forEach((freq) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine"; // Soft sine wave for pure ambient background pad
+      osc.frequency.setValueAtTime(freq, now);
+
+      const lpFilter = ctx.createBiquadFilter();
+      lpFilter.type = "lowpass";
+      lpFilter.frequency.setValueAtTime(320, now);
+      lpFilter.frequency.exponentialRampToValueAtTime(160, now + chordDuration);
+
+      const voiceGain = ctx.createGain();
+      voiceGain.gain.setValueAtTime(0, now);
+      voiceGain.gain.linearRampToValueAtTime(0.04, now + fadeTime);
+      voiceGain.gain.setValueAtTime(0.04, now + chordDuration - fadeTime);
+      voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + chordDuration);
+
+      osc.connect(lpFilter);
+      lpFilter.connect(voiceGain);
+      voiceGain.connect(musicGain!);
+
+      osc.start(now);
+      osc.stop(now + chordDuration);
+    });
+  };
+
+  playNextChord();
+  musicInterval = setInterval(playNextChord, 8500); // 8.5s interval with overlap
+};
+
+const startNatureSounds = (ctx: AudioContext, destination: AudioNode) => {
+  if (natureInterval) return;
+
+  natureGain = ctx.createGain();
+  natureGain.gain.setValueAtTime(0, ctx.currentTime);
+  natureGain.connect(destination);
+
+  natureInterval = setInterval(() => {
+    if (!natureGain || natureGain.gain.value < 0.001) return;
+    
+    const now = ctx.currentTime;
+    const r = Math.random();
+
+    if (r < 0.45) {
+      // Woodland Frog Croak Ribbit
+      const duration = 0.4;
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(75, now);
+      
+      const vibrato = ctx.createOscillator();
+      vibrato.frequency.setValueAtTime(35, now);
+      const vibGain = ctx.createGain();
+      vibGain.gain.setValueAtTime(25, now);
+      vibrato.connect(vibGain);
+      vibGain.connect(osc.frequency);
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(180, now);
+      filter.Q.setValueAtTime(4, now);
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(0.035, now + 0.06);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      osc.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(natureGain);
+
+      vibrato.start(now);
+      vibrato.stop(now + duration);
+      osc.start(now);
+      osc.stop(now + duration);
+    } else if (r < 0.8) {
+      // Forest Breezy Leaf Rustle
+      const duration = 1.2;
+      const noise = ctx.createBufferSource();
+      const bufferSize = 1.2 * ctx.sampleRate;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      noise.buffer = noiseBuffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(2200, now);
+      filter.Q.setValueAtTime(0.8, now);
+
+      const mod = ctx.createOscillator();
+      mod.frequency.setValueAtTime(1.5, now);
+      const modGain = ctx.createGain();
+      modGain.gain.setValueAtTime(600, now);
+      mod.connect(modGain);
+      modGain.connect(filter.frequency);
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(0.02, now + 0.3);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      noise.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(natureGain);
+
+      mod.start(now);
+      mod.stop(now + duration);
+      noise.start(now);
+      noise.stop(now + duration);
+    }
+  }, 2800);
 };
 
 // Controls rain volume transition over standard timeline
@@ -166,6 +319,16 @@ export const fadeInForestAmbient = (duration: number = 4) => {
     windGain.gain.cancelScheduledValues?.(ctx.currentTime);
     windGain.gain.setValueAtTime(windGain.gain.value, ctx.currentTime);
     windGain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + duration);
+  }
+  if (musicGain) {
+    musicGain.gain.cancelScheduledValues?.(ctx.currentTime);
+    musicGain.gain.setValueAtTime(musicGain.gain.value, ctx.currentTime);
+    musicGain.gain.linearRampToValueAtTime(0.55, ctx.currentTime + duration); // Rich background ambient music
+  }
+  if (natureGain) {
+    natureGain.gain.cancelScheduledValues?.(ctx.currentTime);
+    natureGain.gain.setValueAtTime(natureGain.gain.value, ctx.currentTime);
+    natureGain.gain.linearRampToValueAtTime(0.60, ctx.currentTime + duration); // Natural woodland frogs and rustles
   }
 };
 
@@ -292,6 +455,14 @@ export const stopAllAmbientSynth = () => {
     clearInterval(cricketInterval);
     cricketInterval = null;
   }
+  if (musicInterval) {
+    clearInterval(musicInterval);
+    musicInterval = null;
+  }
+  if (natureInterval) {
+    clearInterval(natureInterval);
+    natureInterval = null;
+  }
   
   if (rainGain) {
     try { rainGain.gain.setValueAtTime(0, audioCtx?.currentTime || 0); } catch (e){}
@@ -301,5 +472,11 @@ export const stopAllAmbientSynth = () => {
   }
   if (windGain) {
     try { windGain.gain.setValueAtTime(0, audioCtx?.currentTime || 0); } catch (e){}
+  }
+  if (musicGain) {
+    try { musicGain.gain.setValueAtTime(0, audioCtx?.currentTime || 0); } catch (e){}
+  }
+  if (natureGain) {
+    try { natureGain.gain.setValueAtTime(0, audioCtx?.currentTime || 0); } catch (e){}
   }
 };

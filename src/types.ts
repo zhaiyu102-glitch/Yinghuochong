@@ -7,6 +7,7 @@ export enum JourneyStage {
 export enum HandGesture {
   OPEN = "OPEN",                 // Five fingers open - Move forward & rotate view
   FIST = "FIST",                 // Hand closed - Grab nearest fireflies & freeze
+  OK = "OK",                     // OK gesture - Close index and thumb, others extended
   UNKNOWN = "UNKNOWN"
 }
 

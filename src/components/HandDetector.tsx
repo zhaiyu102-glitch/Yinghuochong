@@ -288,18 +288,37 @@ export default function HandDetector({
       ctx.restore();
 
       // Determine Gesture State:
-      // Compare average distance from finger tips (8, 12, 16, 20) to their respective bases (5, 9, 13, 17)
-      const tips = [8, 12, 16, 20];
-      const bases = [5, 9, 13, 17];
-      let sumDistance = 0;
+      // 1. Check OK gesture: Tip of thumb (4) and tip of index (8) are pinched together, while middle/ring/pinky are extended.
+      const distThumbIndex = getDistance(landmarks[4], landmarks[8]);
 
-      for (let i = 0; i < tips.length; i++) {
-        sumDistance += getDistance(landmarks[tips[i]], landmarks[bases[i]]);
+      // Check extensions of middle (12), ring (16), pinky (20) relative to their respective knuckles (9, 13, 17)
+      const otherTips = [12, 16, 20];
+      const otherBases = [9, 13, 17];
+      let otherSum = 0;
+      for (let i = 0; i < otherTips.length; i++) {
+        let d = getDistance(landmarks[otherTips[i]], landmarks[otherBases[i]]);
+        otherSum += d;
       }
-      const avgDistance = sumDistance / tips.length;
+      const otherAvg = otherSum / otherTips.length;
 
-      // Calibration threshold: below 0.12 means fingers are clenched tightly (FIST)
-      const gesture = avgDistance < 0.12 ? HandGesture.FIST : HandGesture.OPEN;
+      let gesture = HandGesture.OPEN;
+      if (distThumbIndex < 0.05 && otherAvg > 0.12) {
+        gesture = HandGesture.OK;
+      } else {
+        // Compare average distance from finger tips (8, 12, 16, 20) to their respective bases (5, 9, 13, 17)
+        const tips = [8, 12, 16, 20];
+        const bases = [5, 9, 13, 17];
+        let sumDistance = 0;
+
+        for (let i = 0; i < tips.length; i++) {
+          sumDistance += getDistance(landmarks[tips[i]], landmarks[bases[i]]);
+        }
+        const avgDistance = sumDistance / tips.length;
+
+        // Calibration threshold: below 0.12 means fingers are clenched tightly (FIST)
+        gesture = avgDistance < 0.12 ? HandGesture.FIST : HandGesture.OPEN;
+      }
+
       setDetectedGesture(gesture);
 
       // Map the index tip (landmark 8) or palm center (landmark 9) to normal system coordinates
@@ -441,25 +460,32 @@ export default function HandDetector({
         {cameraActive && detectedGesture !== HandGesture.UNKNOWN && (
           <div className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-lime-500/95 text-slate-950 backdrop-blur-md px-3 py-1 rounded-lg shadow-lg text-[10px] font-bold">
             <Sparkles className="w-3 h-3 text-slate-950 animate-pulse" />
-            手势识别: {detectedGesture === HandGesture.FIST ? "✊ 握拳捕捉" : "🖐️ 张掌漫步"}
+            手势识别: {detectedGesture === HandGesture.FIST ? "✊ 握拳捕捉" : detectedGesture === HandGesture.OK ? "👌 OK关闭诗意" : "🖐️ 张掌漫步"}
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mt-4 text-[10px]">
-        <div className="bg-slate-950/30 border border-slate-800/40 rounded-lg p-2.5 flex items-start gap-1.5">
-          <span className="text-xs leading-none">🖐️</span>
-          <div>
-            <span className="font-semibold text-slate-300 block mb-0.5">张开手掌</span>
-            <span className="text-slate-500">角色缓慢漫步，视角随手掌左右环绕</span>
+      <div className="grid grid-cols-3 gap-2 mt-4 text-[9px]">
+        <div className="bg-slate-950/30 border border-slate-800/40 rounded-lg p-2 flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs">🖐️</span>
+            <span className="font-semibold text-slate-300">张开手掌</span>
           </div>
+          <span className="text-slate-500 leading-normal">缓慢漫步游历与视角随左右环绕</span>
         </div>
-        <div className="bg-slate-950/30 border border-slate-800/40 rounded-lg p-2.5 flex items-start gap-1.5">
-          <span className="text-xs leading-none">✊</span>
-          <div>
-            <span className="font-semibold text-slate-300 block mb-0.5">微握成拳</span>
-            <span className="text-slate-500">脚步停下，就近萤火虫吸星引向掌心</span>
+        <div className="bg-slate-950/30 border border-slate-800/40 rounded-lg p-2 flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs">✊</span>
+            <span className="font-semibold text-slate-300">微握成拳</span>
           </div>
+          <span className="text-slate-500 leading-normal">就近吸星，吸引萤火虫至手掌心</span>
+        </div>
+        <div className="bg-slate-950/30 border border-slate-800/40 rounded-lg p-2 flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-lime-404 text-lime-450">👌</span>
+            <span className="font-semibold text-slate-300">OK手势</span>
+          </div>
+          <span className="text-slate-500 leading-normal">一键关闭弹出的诗游日记窗口</span>
         </div>
       </div>
     </div>

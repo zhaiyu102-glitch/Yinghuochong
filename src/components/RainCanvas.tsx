@@ -29,6 +29,15 @@ export default function RainCanvas({ isRaining }: RainCanvasProps) {
   // Sync ref to avoid stale closure in animation loop
   useEffect(() => {
     isRainingRef.current = isRaining;
+    if (!isRaining) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+    }
   }, [isRaining]);
 
   useEffect(() => {
@@ -79,6 +88,7 @@ export default function RainCanvas({ isRaining }: RainCanvasProps) {
       // Check if rain has stopped - freeze all frame renders and animations instantly!
       if (!isRainingRef.current) {
         // Stop requesting further frames to halt/freeze the entire canvas animation completely as requested!
+        ctx.clearRect(0, 0, width, height);
         return;
       }
 
