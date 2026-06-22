@@ -1,0 +1,10 @@
+{
+  "name": "奇秘森林萤火手势交互",
+  "description": "基于 MediaPipe 手势雷达和 Google AI 离线/在线混合诗意模型的可视化萤火虫手势追逐和观察装置。",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
