@@ -111,6 +111,21 @@ export default function App() {
   const [totalCaptured, setTotalCaptured] = useState<number>(0);
   const [totalReleased, setTotalReleased] = useState<number>(0);
   const [lastSceneChangeNotify, setLastSceneChangeNotify] = useState<string | null>(null);
+  const [, setBgTrigger] = useState(0);
+
+  // Monitor image load completions to trigger instant canvas re-render upon dynamic fetching
+  useEffect(() => {
+    const handleLoad = () => {
+      setBgTrigger(prev => prev + 1);
+    };
+    forestBgImg.onload = handleLoad;
+    creekBgImg.onload = handleLoad;
+    valleyBgImg.onload = handleLoad;
+    
+    if (forestBgImg.complete || creekBgImg.complete || valleyBgImg.complete) {
+      handleLoad();
+    }
+  }, []);
 
   // Gemini Poetic Logging system states
   const [poeLogs, setPoeLogs] = useState<POELog[]>([]);
@@ -625,16 +640,15 @@ export default function App() {
     let localDepth = forestDepth;
 
     const gameLoop = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const width = canvas.width;
-      const height = canvas.height;
-
-      // Handle custom resolution mapping
+      // Handle custom resolution mapping first
       if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
       }
+
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
 
       // 2. Base Background Layer: Enchanted Forest Silhouette with 2.5D parallax
       const lookTiltX = (handPos.x - 0.5) * -50; 
@@ -860,6 +874,13 @@ export default function App() {
   return (
     <div className="relative min-h-screen w-full bg-[#03070c] text-slate-100 font-sans select-none overflow-hidden flex flex-col justify-between">
       
+      {/* Invisible deep pre-loaders to guarantee perfect background graphic loads in production deployments */}
+      <div className="hidden pointer-events-none" aria-hidden="true" style={{ display: "none" }}>
+        <img src={deepEnchantedForest} alt="forest-background-preloader" />
+        <img src={creekSideNight} alt="creek-background-preloader" />
+        <img src={valleySideNight} alt="valley-background-preloader" />
+        <img src={rainyForestNight} alt="rainy-background-preloader" />
+      </div>
       {/* 1. INITIAL COVER WALL (Secure user microgesture to run high-quality Web Audio context) */}
       {!hasInteracted && (
         <div 
