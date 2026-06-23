@@ -34,10 +34,18 @@ import {
 
 import rainyForestNight from "./assets/images/rainy_forest_1782139204033.jpg";
 import deepEnchantedForest from "./assets/images/enchanted_forest_1782139215309.jpg";
+import creekSideNight from "./assets/images/creek_side_night_1782200784523.jpg";
+import valleySideNight from "./assets/images/valley_night_firefly_1782201258689.jpg";
 
-// Pre-load background image for high-performance canvas rendering
-const bgImgElement = new Image();
-bgImgElement.src = deepEnchantedForest;
+// Pre-load background images for high-performance canvas rendering
+const forestBgImg = new Image();
+forestBgImg.src = deepEnchantedForest;
+
+const creekBgImg = new Image();
+creekBgImg.src = creekSideNight;
+
+const valleyBgImg = new Image();
+valleyBgImg.src = valleySideNight;
 
 const LOCAL_POETRY_POOL = [
   "夜雨初霁，林壑生风。指尖凝聚的一缕微光，是落叶里未写完的安眠短笺。",
@@ -97,6 +105,12 @@ export default function App() {
   const [capturedFireflies, setCapturedFireflies] = useState<string[]>([]);
   const [capturedAtTime, setCapturedAtTime] = useState<number | null>(null);
   const [observationPerspective, setObservationPerspective] = useState<"top" | "side" | "macro" | "spectral">("top");
+
+  // Scene modes and cumulative capture states
+  const [currentScene, setCurrentScene] = useState<"forest" | "creek" | "valley">("forest");
+  const [totalCaptured, setTotalCaptured] = useState<number>(0);
+  const [totalReleased, setTotalReleased] = useState<number>(0);
+  const [lastSceneChangeNotify, setLastSceneChangeNotify] = useState<string | null>(null);
 
   // Gemini Poetic Logging system states
   const [poeLogs, setPoeLogs] = useState<POELog[]>([]);
@@ -412,6 +426,14 @@ export default function App() {
     }
   };
 
+  const cycleNextScene = () => {
+    setCurrentScene(prev => {
+      if (prev === "forest") return "creek";
+      if (prev === "creek") return "valley";
+      return "forest";
+    });
+  };
+
   // Real webcam MediaPipe callback
   const handleHandUpdate = (hand: HandData) => {
     setHandPos({ x: hand.x, y: hand.y });
@@ -422,6 +444,22 @@ export default function App() {
       setActiveDiaryPopup(null);
     }
   };
+
+  // Synchronize background image src with active scene mode & load audio/visual transitions
+  useEffect(() => {
+    if (stage !== JourneyStage.FOREST) return;
+    if (currentScene === "creek") {
+      setLastSceneChangeNotify("🌊 已切换至【萤流溪畔】场景：潺潺微波，蛙鸣微吟，萤光落水...");
+    } else if (currentScene === "valley") {
+      setLastSceneChangeNotify("🌌 已切换至【奇幻幽谷】场景：神木参天，幽蓝荧光，万流归谷...");
+    } else {
+      setLastSceneChangeNotify("🌲 已回到【幽谧林野】场景：古树参天，云霓微渺，夜林幽谧...");
+    }
+    const timer = setTimeout(() => {
+      setLastSceneChangeNotify(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [currentScene, stage]);
 
   // Debounce/stabilize rapid gesture toggles to simulate rich physics and trigger sound effects
   useEffect(() => {
@@ -440,6 +478,8 @@ export default function App() {
           triggerFireflyRelease();
         } else if (activeGesture === HandGesture.OK) {
           setActiveDiaryPopup(null);
+        } else if (activeGesture === HandGesture.DOUBLE_OPEN) {
+          cycleNextScene();
         }
       }, 150); // 150ms stabilization filter
       return () => clearTimeout(timeout);
@@ -463,14 +503,22 @@ export default function App() {
 
     const grabLimit = 3;
     const capturedIds: string[] = [];
+    let newlyCapturedCount = 0;
 
     for (let i = 0; i < Math.min(grabLimit, withDist.length); i++) {
       const item = withDist[i];
       if (item.d < 45) {
+        if (!item.f.isCaptured) {
+          newlyCapturedCount++;
+        }
         item.f.isCaptured = true;
         item.f.capturedAt = Date.now();
         capturedIds.push(item.f.id);
       }
+    }
+
+    if (newlyCapturedCount > 0) {
+      setTotalCaptured(prev => prev + newlyCapturedCount);
     }
 
     setCapturedFireflies(capturedIds);
@@ -508,6 +556,7 @@ export default function App() {
     });
 
     if (releasedCount > 0) {
+      setTotalReleased(prev => prev + releasedCount);
       const durationSec = capturedAtTime ? Math.round((Date.now() - capturedAtTime) / 1000) : 3;
       const countAround = list.length + Math.floor(forestDepth);
       const humidity = 85 + Math.floor(Math.sin(forestDepth / 5) * 8);
@@ -598,7 +647,12 @@ export default function App() {
       ctx.fillRect(-60, -60, width + 120, height + 120);
       try {
         ctx.globalAlpha = 0.58;
-        ctx.drawImage(bgImgElement, -70, -50, width + 140, height + 100);
+        const activeBg = currentScene === "creek" 
+          ? creekBgImg 
+          : currentScene === "valley" 
+            ? valleyBgImg 
+            : forestBgImg;
+        ctx.drawImage(activeBg, -70, -50, width + 140, height + 100);
       } catch (e) {}
       ctx.restore();
 
@@ -611,11 +665,15 @@ export default function App() {
       ctx.fillStyle = mistGradient;
       ctx.fillRect(0, 0, width, height);
 
-      // 3. Movement Logic: Walking if OPEN
-      const isWalking = stabilizedGesture === HandGesture.OPEN;
+      // 3. Movement Logic: Walking if OPEN or DOUBLE_OPEN
+      const isWalking = stabilizedGesture === HandGesture.OPEN || stabilizedGesture === HandGesture.DOUBLE_OPEN;
       let depthSpeed = 0;
-      if (isWalking) {
+      if (stabilizedGesture === HandGesture.DOUBLE_OPEN) {
+        depthSpeed = 0.16; // Double palms move deeper faster!
+      } else if (stabilizedGesture === HandGesture.OPEN) {
         depthSpeed = 0.08;
+      }
+      if (depthSpeed > 0) {
         localDepth += depthSpeed;
         setForestDepth(localDepth);
 
@@ -757,13 +815,16 @@ export default function App() {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [stage, handPos, stabilizedGesture, forestDepth]);
+  }, [stage, handPos, stabilizedGesture, forestDepth, currentScene]);
 
   const handleVirtualClickStage = (gesture: HandGesture) => {
     startAtmosphereAndAudio();
     setActiveGesture(gesture);
     if (gesture === HandGesture.OK) {
       setActiveDiaryPopup(null);
+    }
+    if (gesture === HandGesture.DOUBLE_OPEN) {
+      cycleNextScene();
     }
   };
 
@@ -989,9 +1050,19 @@ export default function App() {
               </div>
               <div>
                 <h1 className="font-extrabold text-[11px] tracking-widest uppercase text-slate-200">萤火交互 · 奇秘森林</h1>
-                <p className="text-[9px] font-mono text-lime-400 tracking-wider">Depth Level: {forestDepth.toFixed(1)}m</p>
+                <p className="text-[9px] font-mono text-lime-400 tracking-wider">
+                  Depth Level: {forestDepth.toFixed(1)}m | 累计捕捉: <span className="font-bold text-sky-400">{totalCaptured}</span> 只 | 已放飞: <span className="font-bold text-emerald-400">{totalReleased}</span> 只
+                </p>
               </div>
             </div>
+
+            {/* Real-time Scene Transition Overlay Notification Banner */}
+            {lastSceneChangeNotify && (
+              <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 bg-slate-950/90 text-lime-450 border border-lime-500/30 px-4 py-2 rounded-xl shadow-[0_0_25px_rgba(163,230,53,0.15)] flex items-center gap-2 animate-pulse pointer-events-none text-[10px] sm:text-xs">
+                <span className="w-2 h-2 bg-lime-400 rounded-full animate-ping mr-1" />
+                <span className="text-slate-200">{lastSceneChangeNotify}</span>
+              </div>
+            )}
 
             {/* Muted and control modes floats */}
             <div className="flex gap-2 pointer-events-auto">
@@ -1033,15 +1104,56 @@ export default function App() {
                 </span>
               </div>
               
-              <p className="text-xs text-slate-300 tracking-wide mb-3">
-                {stabilizedGesture === HandGesture.OPEN 
-                  ? "🖐️ 状态：展开手掌。正在夜林腹地漫步探查 ({0.08m/s} 向深处)..." 
-                  : "✊ 状态：五指握拢。萤火虫被掌心吸附，可以近距离观察。"
+              <p className="text-xs text-slate-300 tracking-wide mb-3 animate-fade-in">
+                {stabilizedGesture === HandGesture.DOUBLE_OPEN
+                  ? "🖐️🖐️ 状态：双掌齐开。正在唤醒时空法则，切换场景，当前引导您倍速漫步幽邃 (加速 0.16m/s)。"
+                  : stabilizedGesture === HandGesture.OPEN 
+                    ? "🖐️ 状态：展开手掌。正在树林腹地缓慢漫步探查 (0.08m/s)..." 
+                    : stabilizedGesture === HandGesture.OK
+                      ? "👌 状态：OK手势。灵敏合拢已弹出的日记诗集窗口。"
+                      : "✊ 状态：五指握拢。萤火虫凝聚于掌心，可供超微距观察特性。"
                 }
               </p>
 
+              {/* Active Scene Switcher Button Group */}
+              <div className="mb-3 font-sans">
+                <span className="text-[8px] uppercase font-bold tracking-widest text-slate-500 font-mono block mb-1">Active Scene (当前场景)</span>
+                <div className="grid grid-cols-3 gap-1 p-1 bg-black/60 border border-slate-900 rounded-lg">
+                  <button
+                    onClick={() => setCurrentScene("forest")}
+                    className={`py-1 text-[8px] font-bold rounded transition-all whitespace-nowrap ${
+                      currentScene === "forest"
+                        ? "bg-lime-500/20 text-lime-400 border border-lime-500/40"
+                        : "text-slate-500 hover:text-slate-300 border border-transparent"
+                    }`}
+                  >
+                    🌲 幽谧林野
+                  </button>
+                  <button
+                    onClick={() => setCurrentScene("creek")}
+                    className={`py-1 text-[8px] font-bold rounded transition-all whitespace-nowrap ${
+                      currentScene === "creek"
+                        ? "bg-sky-500/20 text-sky-450 border border-sky-500/40"
+                        : "text-slate-500 hover:text-slate-300 border border-transparent"
+                    }`}
+                  >
+                    🌊 潺潺溪畔
+                  </button>
+                  <button
+                    onClick={() => setCurrentScene("valley")}
+                    className={`py-1 text-[8px] font-bold rounded transition-all whitespace-nowrap ${
+                      currentScene === "valley"
+                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
+                        : "text-slate-500 hover:text-slate-300 border border-transparent"
+                    }`}
+                  >
+                    🌌 奇幻幽谷
+                  </button>
+                </div>
+              </div>
+
               {/* Mode Control Selector */}
-              <div className="flex gap-2 p-1 bg-black border border-slate-900 rounded-lg">
+              <div className="flex gap-2 p-1 bg-black border border-slate-900 rounded-lg font-sans">
                 <button
                   onClick={() => handleToggleControlMode("virtual")}
                   className={`flex-1 py-1.5 text-[10px] font-bold rounded transition-all ${
@@ -1066,41 +1178,53 @@ export default function App() {
 
               {/* Control helper inside virtual mode */}
               {controlMode === "virtual" && (
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
                   <button
                     onClick={() => handleVirtualClickStage(HandGesture.OPEN)}
-                    className={`py-2 px-1 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2 px-0.5 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-1 transition-all ${
                       stabilizedGesture === HandGesture.OPEN
                         ? "bg-lime-400/20 border-lime-400 text-lime-300 shadow-md"
                         : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
                     }`}
                   >
                     <span className="text-sm">🖐️</span>
-                    <span>张手 (前行)</span>
+                    <span>张手(前行)</span>
                   </button>
 
                   <button
                     onClick={() => handleVirtualClickStage(HandGesture.FIST)}
-                    className={`py-2 px-1 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2 px-0.5 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-1 transition-all ${
                       stabilizedGesture === HandGesture.FIST
                         ? "bg-sky-400/20 border-sky-400 text-sky-300 shadow-md"
                         : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
                     }`}
                   >
                     <span className="text-sm">✊</span>
-                    <span>握拳 (捕捉)</span>
+                    <span>握拳(捕捉)</span>
                   </button>
 
                   <button
                     onClick={() => handleVirtualClickStage(HandGesture.OK)}
-                    className={`py-2 px-1 rounded-lg border text-[10px] font-bold flex flex-col items-center gap-1 transition-all ${
+                    className={`py-2 px-0.5 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-1 transition-all ${
                       stabilizedGesture === HandGesture.OK
                         ? "bg-amber-400/20 border-amber-400 text-amber-300 shadow-md"
                         : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
                     }`}
                   >
                     <span className="text-xs">👌</span>
-                    <span>OK (关闭)</span>
+                    <span>OK(关闭)</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleVirtualClickStage(HandGesture.DOUBLE_OPEN)}
+                    className={`py-2 px-0.5 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-1 transition-all ${
+                      stabilizedGesture === HandGesture.DOUBLE_OPEN
+                        ? "bg-emerald-400/20 border-emerald-400 text-emerald-300 shadow-md"
+                        : "bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900"
+                    }`}
+                  >
+                    <span className="text-sm">🖐️🖐️</span>
+                    <span>双掌(溪边)</span>
                   </button>
                 </div>
               )}

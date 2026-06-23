@@ -8,6 +8,7 @@ export enum HandGesture {
   OPEN = "OPEN",                 // Five fingers open - Move forward & rotate view
   FIST = "FIST",                 // Hand closed - Grab nearest fireflies & freeze
   OK = "OK",                     // OK gesture - Close index and thumb, others extended
+  DOUBLE_OPEN = "DOUBLE_OPEN",   // Double hand open - Dive into the forest, switch to Creek-side scene
   UNKNOWN = "UNKNOWN"
 }
 
